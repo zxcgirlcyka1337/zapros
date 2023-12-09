@@ -1,121 +1,101 @@
-# Определяем класс Book для представления отдельной книги
-class Book:
-    def __init__(self, title, author, description, genre):
-        self.title = title
-        self.author = author
-        self.description = description
-        self.genre = genre
+### Импорт модулей и класс Library
+import sqlite3
 
-# Определяем класс Library для управления книгами в библиотеке
 class Library:
+    ###происходит импорт модуля sqlite3, который используется для работы с базой данных sqlite и определение класса library
     def __init__(self):
-        self.books = []  # Инициализируем пустой список книг
-        self.genres = ['Фантастика', 'Детектив', 'Роман']  # Заранее заданные жанры
+        self.conn = sqlite3.connect('library.db')
+        self.cursor = self.conn.cursor()
+        self.create_books_table()
+        self.genres = ['Фантастика', 'Детектив', 'Роман']
 
-    # Метод для добавления новой книги
+        ### Метод create_books_table
+    def create_books_table(self):
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS books (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                author TEXT,
+                description TEXT,
+                genre TEXT
+            )
+        """)
+        self.conn.commit()
+### Метод add_book
     def add_book(self, title, author, description, genre):
-        new_book = Book(title, author, description, genre)  # Создаем новый экземпляр Book
-        self.books.append(new_book)  # Добавляем книгу в список книг
-        print(f'Книга "{title}" успешно добавлена!')
-
-    # Метод для просмотра всех книг
+        self.cursor.execute("""
+            INSERT INTO books (title, author, description, genre)
+            VALUES (?, ?, ?, ?)
+        """, (title, author, description, genre))
+        self.conn.commit()
+        print(f'Книга "{title}" успешно добавлена в библиотеку!')
+### Метод view_books
     def view_books(self):
-        if len(self.books) == 0:
+        self.cursor.execute("SELECT * FROM books")
+        books = self.cursor.fetchall()
+
+        if len(books) == 0:
             print('В библиотеке нет книг.')
         else:
             print('Список книг в библиотеке:')
-            for book in self.books:
-                print(f'Название: {book.title}, Автор: {book.author}')
+            for book in books:
+                print(f'Название: {book[1]}, Автор: {book[2]}, Жанр: {book[4]}')
 
-    # Метод для просмотра подробной информации о книге
-    def view_book_details(self, title):
-        for book in self.books:
-            if book.title == title:
-                print('Подробная информация о книге:')
-                print(f'Название: {book.title}')
-                print(f'Автор: {book.author}')
-                print(f'Описание: {book.description}')
-                print(f'Жанр: {book.genre}')
-                return
-        print(f'Книга с названием "{title}" не найдена.')
-
-    # Метод для вывода книг определенного жанра
-    def view_books_by_genre(self, genre):
-        print(f'Список книг в жанре "{genre}":')
-        found_books = []
-        for book in self.books:
-            if book.genre == genre:
-                found_books.append(book)
-                print(f'Название: {book.title}, Автор: {book.author}')
-        if len(found_books) == 0:
-            print(f'Книги в жанре "{genre}" не найдены.')
-
-    # Метод для поиска книги по ключевому слову
     def search_books(self, keyword):
-        print(f'Результаты поиска по ключевому слову "{keyword}":')
-        found_books = []
-        for book in self.books:
-            if keyword in book.title or keyword in book.author:
-                found_books.append(book)
-                print(f'Название: {book.title}, Автор: {book.author}')
-        if len(found_books) == 0:
-            print('Книги с данным ключевым словом не найдены.')
+        self.cursor.execute("""
+            SELECT * FROM books WHERE title LIKE ? OR author LIKE ? OR description LIKE ?
+        """, (f'%{keyword}%', f'%{keyword}%', f'%{keyword}%'))
+        books = self.cursor.fetchall()
 
-    # Метод для удаления книги
+        if len(books) == 0:
+            print(f'По запросу "{keyword}" ничего не найдено.')
+        else:
+            print(f'Результаты поиска по запросу "{keyword}":')
+            for book in books:
+                print(f'Название: {book[1]}, Автор: {book[2]}, Жанр: {book[4]}')
+
     def remove_book(self, title):
-        for book in self.books:
-            if book.title == title:
-                self.books.remove(book)
-                print(f'Книга "{title}" успешно удалена!')
-                return
-        print(f'Книга с названием "{title}" не найдена.')
+        self.cursor.execute("DELETE FROM books WHERE title = ?", (title,))
+        self.conn.commit()
+        print(f'Книга "{title}" успешно удалена из библиотеки!')
 
+    def close_connection(self):
+        self.conn.close()
 
-# Функция для запуска программы
 def main():
     library = Library()
-    choice = ''
-    while choice != '0':
-        print('Выберите действие:')
+
+    while True:
+        print('Меню:')
         print('1. Добавить новую книгу')
         print('2. Просмотреть список книг')
-        print('3. Просмотреть подробную информацию о книге')
-        print('4. Вывести книги определенного жанра')
-        print('5. Поиск книги по ключевому слову')
-        print('6. Удалить книгу')
-        print('0. Выйти')
+        print('3. Поиск книги по ключевому слову')
+        print('4. Удалить книгу')
+        print('0. Выход из программы')
 
-        choice = input('Введите номер действия: ')
+        choice = input('Сделайте выбор: ')
 
         if choice == '1':
             title = input('Введите название книги: ')
             author = input('Введите автора книги: ')
             description = input('Введите описание книги: ')
-            print('Доступные жанры:', library.genres)
-            genre = input('Введите жанр книги или введите новый жанр: ')
+            genre = input('Введите жанр книги: ')
             library.add_book(title, author, description, genre)
 
         elif choice == '2':
             library.view_books()
 
         elif choice == '3':
-            title = input('Введите название книги для просмотра подробной информации: ')
-            library.view_book_details(title)
-
-        elif choice == '4':
-            genre = input('Введите жанр книги: ')
-            library.view_books_by_genre(genre)
-
-        elif choice == '5':
             keyword = input('Введите ключевое слово для поиска: ')
             library.search_books(keyword)
-
-        elif choice == '6':
+        
+        elif choice == '4':
             title = input('Введите название книги для удаления: ')
             library.remove_book(title)
 
         elif choice == '0':
             print('Выход из программы.')
+            library.close_connection()
             break
 
         else:
